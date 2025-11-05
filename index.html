@@ -63,7 +63,7 @@
     letter-spacing: 1px;
   }
   #botDifficulty { margin-bottom: 20px; color:#0ff; }
-  #botDifficulty input { width:200px; }
+  #botDifficulty input { width:200px; vertical-align:middle; }
   #countdown { 
     font-size: 80px; 
     color: #0ff; 
@@ -82,9 +82,11 @@
 <div id="menu">
   <h1>Tron Lightcycles ⚡ Neon Pro</h1>
 
+  <!-- 1 Player Difficulty & Beast Mode -->
   <div id="botDifficulty" style="display:none;">
     <label for="difficultySlider">Bot Difficulty: <span id="difficultyValue">3</span></label><br>
     <input type="range" id="difficultySlider" min="1" max="5" value="3">
+    <button id="beastModeBtn">Beast Mode</button>
   </div>
 
   <button id="botBtn">1 Player (vs Smart Bot)</button>
@@ -105,6 +107,7 @@ let gameInterval, countdownInterval;
 let mode = 'bot';
 let scores = {p1:0, p2:0};
 let countdownNumber = 3;
+let beastMode = false;
 
 const player1 = {x: 10, y: 10, dx:1, dy:0, color:'#0ff', trail:[]};
 const player2 = {x: cols-10, y: rows-10, dx:-1, dy:0, color:'#f0f', trail:[]};
@@ -229,7 +232,14 @@ function floodAreaCount(sx,sy,limit=2000){
 }
 
 function smartBotMove(){
-  const difficulty = parseInt(document.getElementById('difficultySlider')?.value || 3);
+  let difficulty = parseInt(document.getElementById('difficultySlider')?.value || 3);
+  let searchLimit = 2000;
+
+  if(beastMode){
+    searchLimit = 200000; 
+    difficulty = 5; 
+  }
+
   let idx = dirIndex(player2.dx, player2.dy);
   const candIdx = [idx, (idx+3)%4, (idx+1)%4];
   const candidates = [];
@@ -246,7 +256,7 @@ function smartBotMove(){
       case 2: area = floodAreaCount(nx,ny,50); break;
       case 3: area = floodAreaCount(nx,ny,2000) + (100 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)); break;
       case 4: area = floodAreaCount(nx,ny,5000) + (200 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)); break;
-      case 5: area = floodAreaCount(nx,ny,8000) + (500 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)*2); break;
+      case 5: area = floodAreaCount(nx,ny,searchLimit) + (500 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)*2); break;
     }
 
     candidates.push({d, area});
@@ -277,6 +287,7 @@ document.addEventListener('keydown',e=>{
 // Menu buttons
 const startBtn = document.getElementById('startBtn');
 const difficultySlider = document.getElementById('difficultySlider');
+const beastModeBtn = document.getElementById('beastModeBtn');
 
 document.getElementById('botBtn').addEventListener('click', () => {
   document.getElementById('botDifficulty').style.display = 'block';
@@ -289,6 +300,11 @@ document.getElementById('restartBtn').addEventListener('click',()=>startGame(mod
 difficultySlider.addEventListener('input', (e)=>{
   document.getElementById('difficultyValue').textContent = e.target.value;
   startBtn.style.display = 'inline-block';
+});
+
+beastModeBtn.addEventListener('click', ()=>{
+  beastMode = true;
+  alert("Beast Mode Activated! The bot is now nearly impossible to beat!");
 });
 
 startBtn.addEventListener('click', ()=>beginCountdown('bot'));
