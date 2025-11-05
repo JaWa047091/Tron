@@ -55,6 +55,8 @@
     text-shadow: 0 0 10px #0ff; 
     letter-spacing: 1px;
   }
+  #botDifficulty { margin-bottom: 20px; color:#0ff; }
+  #botDifficulty input { width:200px; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -62,10 +64,16 @@
 <div id="score">Player 1: 0  |  Player 2: 0</div>
 <div id="menu">
   <h1>Tron Lightcycles ⚡ Neon</h1>
+
+  <div id="botDifficulty" style="display:none;">
+    <label for="difficultySlider">Bot Difficulty: <span id="difficultyValue">3</span></label><br>
+    <input type="range" id="difficultySlider" min="1" max="5" value="3">
+  </div>
+
   <button id="botBtn">1 Player (vs Smart Bot)</button>
   <button id="twoBtn">2 Player</button>
   <button id="restartBtn">Restart</button>
-  <button id="resetScoresBtn">Reset Scores</button>
+  <button id="startBtn" style="display:none;">Start Game</button>
 </div>
 <canvas id="gameCanvas" width="800" height="600"></canvas>
 <script>
@@ -86,6 +94,8 @@ function resetGame(){
   player1.x=10; player1.y=10; player1.dx=1; player1.dy=0; player1.trail=[];
   player2.x=cols-10; player2.y=rows-10; player2.dx=-1; player2.dy=0; player2.trail=[];
   document.getElementById('menu').style.display='none';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 
 function drawCell(x,y,color){
@@ -106,6 +116,7 @@ function drawGrid(){
 function checkCollisionAt(pos){
   if(pos.x<0||pos.x>=cols||pos.y<0||pos.y>=rows) return true;
   for(let t of player1.trail.concat(player2.trail)) if(t.x===pos.x&&t.y===pos.y) return true;
+  if((player1.x===pos.x&&player1.y===pos.y) || (player2.x===pos.x&&player2.y===pos.y)) return true;
   return false;
 }
 
@@ -116,7 +127,7 @@ function update(){
   const next2 = { x: player2.x + player2.dx, y: player2.y + player2.dy };
 
   if(checkCollisionAt(next1) || checkCollisionAt(next2) || (next1.x===next2.x && next1.y===next2.y)){
-    handleCrash();
+    handleCrash(next1, next2);
     return;
   }
 
@@ -137,20 +148,19 @@ function draw(){
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
   drawGrid();
-
   player1.trail.forEach(t => drawCell(t.x,t.y,player1.color));
   player2.trail.forEach(t => drawCell(t.x,t.y,player2.color));
-
   drawCell(player1.x,player1.y,player1.color);
   drawCell(player2.x,player2.y,player2.color);
 }
 
-function handleCrash(){
+function handleCrash(next1,next2){
   clearInterval(gameInterval);
-  const p1Dead = checkCollisionAt({x:player1.x,y:player1.y});
-  const p2Dead = checkCollisionAt({x:player2.x,y:player2.y});
-  let winner='Draw!';
 
+  const p1Dead = checkCollisionAt(next1);
+  const p2Dead = checkCollisionAt(next2);
+
+  let winner='Draw!';
   if(p1Dead && !p2Dead) { winner='Player 2 Wins!'; scores.p2++; }
   else if(p2Dead && !p1Dead) { winner='Player 1 Wins!'; scores.p1++; }
 
@@ -161,32 +171,71 @@ function handleCrash(){
   ctx.textAlign='center';
   ctx.fillText(winner,canvas.width/2,canvas.height/2);
 
-  document.getElementById('menu').style.display='block';
+  setTimeout(()=>{
+    document.getElementById('menu').style.display='block';
+  }, 2000);
 }
 
-// Smart Bot AI
+// Smart Bot AI with difficulty levels
 const DIRS=[{dx:0,dy:-1},{dx:1,dy:0},{dx:0,dy:1},{dx:-1,dy:0}];
 function dirIndex(dx,dy){for(let i=0;i<4;i++) if(DIRS[i].dx===dx&&DIRS[i].dy===dy) return i; return 0;}
-function neighbours(x,y){return [{x:x,y:y-1},{x:x+1,y:y},{x:x,y:y+1},{x:x-1,y:y}];}
-function isOccupied(x,y){if(x<0||x>=cols||y<0||y>=rows) return true; for(const t of player1.trail) if(t.x===x&&t.y===y) return true; for(const t of player2.trail) if(t.x===x&&t.y===y) return true; if(player1.x===x&&player1.y===y) return true; if(player2.x===x&&player2.y===y) return true; return false;}
-function floodAreaCount(sx,sy,limit=2000){if(isOccupied(sx,sy)) return 0; const q=[{x:sx,y:sy}]; const seen=new Set([sx+','+sy]); let count=0; while(q.length&&count<limit){const cur=q.shift(); count++; for(const n of neighbours(cur.x,cur.y)){const key=n.x+','+n.y; if(seen.has(key)) continue; if(n.x<0||n.x>=cols||n.y<0||n.y>=rows) continue; if(isOccupied(n.x,n.y)) continue; seen.add(key); q.push(n);}} return count;}
+function neighbours(x,y){return [{x:x, y:y-1},{x:x+1, y:y},{x:x, y:y+1},{x:x-1, y:y}];}
+function isOccupied(x,y){
+  if(x<0||x>=cols||y<0||y>=rows) return true; 
+  for(const t of player1.trail) if(t.x===x&&t.y===y) return true; 
+  for(const t of player2.trail) if(t.x===x&&t.y===y) return true; 
+  if(player1.x===x&&player1.y===y) return true; 
+  if(player2.x===x&&player2.y===y) return true; 
+  return false;
+}
+function floodAreaCount(sx,sy,limit=2000){
+  if(isOccupied(sx,sy)) return 0; 
+  const q=[{x:sx,y:sy}]; 
+  const seen=new Set([sx+','+sy]); 
+  let count=0; 
+  while(q.length && count<limit){
+    const cur=q.shift(); count++; 
+    for(const n of neighbours(cur.x,cur.y)){
+      const key=n.x+','+n.y; 
+      if(seen.has(key)) continue; 
+      if(n.x<0||n.x>=cols||n.y<0||n.y>=rows) continue; 
+      if(isOccupied(n.x,n.y)) continue; 
+      seen.add(key); 
+      q.push(n);
+    }
+  } 
+  return count;
+}
+
 function smartBotMove(){
-  let idx=dirIndex(player2.dx,player2.dy);
-  const candIdx=[idx,(idx+3)%4,(idx+1)%4];
-  const candidates=[];
+  const difficulty = parseInt(document.getElementById('difficultySlider')?.value || 3);
+  let idx = dirIndex(player2.dx, player2.dy);
+  const candIdx = [idx, (idx+3)%4, (idx+1)%4];
+  const candidates = [];
+
   for(const ci of candIdx){
-    const d=DIRS[ci];
-    const nx=player2.x+d.dx; const ny=player2.y+d.dy;
+    const d = DIRS[ci];
+    const nx = player2.x + d.dx;
+    const ny = player2.y + d.dy;
     if(isOccupied(nx,ny)) continue;
-    let area=floodAreaCount(nx,ny,2000);
-    const dist=Math.abs(nx-player1.x)+Math.abs(ny-player1.y);
-    area += (100-dist);
-    candidates.push({d,area});
+
+    let area = 0;
+    switch(difficulty){
+      case 1: area = Math.random()*10; break;
+      case 2: area = floodAreaCount(nx,ny,50); break;
+      case 3: area = floodAreaCount(nx,ny,2000) + (100 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)); break;
+      case 4: area = floodAreaCount(nx,ny,5000) + (200 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)); break;
+      case 5: area = floodAreaCount(nx,ny,8000) + (500 - Math.abs(nx-player1.x) - Math.abs(ny-player1.y)*2); break;
+    }
+
+    candidates.push({d, area});
   }
-  if(candidates.length===0) return;
-  candidates.sort((a,b)=>b.area-a.area);
-  const best=candidates[0];
-  player2.dx=best.d.dx; player2.dy=best.d.dy;
+
+  if(candidates.length === 0) return;
+  candidates.sort((a,b)=>b.area - a.area);
+  const best = candidates[0];
+  player2.dx = best.d.dx;
+  player2.dy = best.d.dy;
 }
 
 // Input handling
@@ -204,21 +253,37 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+// Menu buttons
+const startBtn = document.getElementById('startBtn');
+const difficultySlider = document.getElementById('difficultySlider');
+
+document.getElementById('botBtn').addEventListener('click', () => {
+  document.getElementById('botDifficulty').style.display = 'block';
+  startBtn.style.display = 'inline-block';
+});
+
+document.getElementById('twoBtn').addEventListener('click',()=>startGame('two'));
+document.getElementById('restartBtn').addEventListener('click',()=>startGame(mode));
+
+difficultySlider.addEventListener('input', (e)=>{
+  document.getElementById('difficultyValue').textContent = e.target.value;
+  startBtn.style.display = 'inline-block';
+});
+
+startBtn.addEventListener('click', ()=>{
+  startBtn.style.display = 'none';
+  document.getElementById('botDifficulty').style.display = 'none';
+  startGame('bot');
+});
+
 function startGame(selectedMode){
   mode=selectedMode;
+  document.getElementById('botDifficulty').style.display = 'none';
+  startBtn.style.display = 'none';
   resetGame();
   clearInterval(gameInterval);
   gameInterval=setInterval(update,80);
 }
-
-// Buttons
-document.getElementById('botBtn').addEventListener('click',()=>startGame('bot'));
-document.getElementById('twoBtn').addEventListener('click',()=>startGame('two'));
-document.getElementById('restartBtn').addEventListener('click',()=>startGame(mode));
-document.getElementById('resetScoresBtn').addEventListener('click',()=>{
-  scores.p1 = 0; scores.p2 = 0;
-  document.getElementById('score').textContent=`Player 1: ${scores.p1}  |  Player 2: ${scores.p2}`;
-});
 </script>
 </body>
 </html>
